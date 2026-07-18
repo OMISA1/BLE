@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OMISA</title>
+<style>
+  :root{--deep:#04342C;--primary:#0F6E56;--accent:#1D9E75;--surface:#E1F5EE;--light:#9FE1CB;--empty:#cfd8d5;}
+  *{box-sizing:border-box;}
+  body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#eef2f0;color:#222;}
+  .hdr{background:var(--primary);color:#fff;padding:12px 14px;display:flex;align-items:center;gap:10px;}
+  .hdr h1{margin:0;font-size:19px;letter-spacing:2px;}
+  .hdr .s{font-size:10px;opacity:.85;}
+  .nav{background:var(--accent);display:flex;overflow-x:auto;}
+  .nav a{color:#fff;text-decoration:none;padding:10px 13px;font-size:12px;white-space:nowrap;cursor:pointer;}
+  .nav a.on{background:var(--primary);font-weight:bold;}
+  .wrap{padding:14px;max-width:680px;margin:0 auto;}
+  .hello{background:var(--surface);border-radius:8px;padding:12px 14px;font-size:13px;margin-bottom:12px;color:var(--deep);}
+  .banner{padding:16px;border-radius:8px;color:#fff;font-size:22px;font-weight:bold;text-align:center;margin-bottom:10px;}
+  .advice{background:#fff;border-left:5px solid #c0392b;padding:12px 14px;margin-bottom:12px;font-size:15px;}
+  .counts{display:flex;gap:8px;margin-bottom:14px;}
+  .count{flex:1;background:#fff;border-radius:8px;padding:10px;text-align:center;}
+  .count .num{font-size:26px;font-weight:bold;color:var(--primary);}
+  .count .lbl{font-size:11px;color:#666;}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:stretch;}
+  .grid .slot{height:100%;}
+  .slot{background:#fff;border-radius:8px;padding:12px;border-top:5px solid var(--empty);}
+  .slot .sn{font-size:11px;color:#999;}
+  .slot .sm{font-size:15px;font-weight:bold;margin:2px 0;}
+  .slot .sf{font-size:11px;color:#777;}
+  .slot .sr{font-size:20px;font-weight:bold;margin:6px 0 2px;}
+  .slot .sstate{font-size:12px;font-weight:bold;}
+  .tag{font-size:9px;padding:2px 6px;border-radius:3px;color:#fff;}
+  .emptyslot{color:#9aa;text-align:center;padding-top:14px;font-size:13px;}
+  .why{font-size:10px;color:#999;font-style:italic;margin-top:4px;}
+  .card{background:#fff;padding:12px;border-radius:8px;margin-bottom:12px;}
+  h3{font-size:15px;margin:0 0 8px;color:var(--primary);}
+  h4{font-size:13px;margin:12px 0 4px;color:var(--deep);}
+  table{width:100%;border-collapse:collapse;font-size:12px;}
+  th{background:var(--primary);color:#fff;padding:6px;text-align:left;}
+  td{padding:6px;border-bottom:1px solid #eee;}
+  .sub{font-size:11px;color:#666;margin:8px 0;}
+  ol{margin:6px 0 6px 18px;padding:0;}li{margin-bottom:5px;font-size:12px;}
+  button{padding:8px 16px;background:var(--primary);color:#fff;border:0;border-radius:5px;font-size:14px;cursor:pointer;}
+  button.ghost{background:#fff;color:var(--primary);border:1px solid var(--light);}
+  .info{background:var(--surface);border-left:4px solid var(--accent);padding:10px;font-size:12px;margin-bottom:12px;}
+  .warn{background:#fff8e1;border-left:4px solid #f39c12;padding:10px;font-size:12px;margin-bottom:12px;}
+  .bar{background:#e2e8e5;border-radius:3px;height:8px;width:100%;margin-top:6px;}
+  .fill{height:8px;border-radius:3px;}
+</style>
+</head>
+<body>
+<div class="hdr" id="hdr">
+  <span id="logo"></span>
+  <div><h1>OMISA</h1><div class="s" id="uptime"></div></div>
+</div>
+<div class="nav" id="nav"></div>
+<div class="wrap" id="main"></div>
+
+<script>
+const SERVICE_UUID='6f1a0001-b5a3-f393-e0a9-e50e24dcca9e';
+const CHAR_UUID='6f1a0002-b5a3-f393-e0a9-e50e24dcca9e';
+const PAGES=['Home','Sensors','History','Connect','About'];
+let device=null,ch=null,D=null,page='Home',connected=false,buf='',openSlot=-1;
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+
+function logoSVG(px){
+  return `<svg viewBox="0 0 300 300" style="width:${px}px;height:${px}px;vertical-align:middle;color:inherit">
+  <path d="M150 92 L191 109 L208 150 L191 191 L150 208 L109 191 L92 150 L109 109 Z" fill="none" stroke="currentColor" stroke-width="14" stroke-linejoin="round"/>
+  <circle cx="150" cy="66" r="16" fill="currentColor"/><circle cx="209" cy="91" r="16" fill="currentColor"/>
+  <circle cx="234" cy="150" r="16" fill="currentColor"/><circle cx="209" cy="209" r="16" fill="currentColor"/>
+  <circle cx="150" cy="234" r="16" fill="currentColor"/><circle cx="91" cy="209" r="16" fill="currentColor"/>
+  <circle cx="66" cy="150" r="16" fill="currentColor"/><circle cx="91" cy="91" r="16" fill="currentColor"/></svg>`;
+}
+function fmtTime(s){s=s|0;if(s<3600)return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');return Math.floor(s/3600)+':'+String(Math.floor((s%3600)/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');}
+function drawNav(){$('nav').innerHTML=PAGES.map(p=>`<a class="${p===page?'on':''}" onclick="go('${p}')">${p}</a>`).join('');}
+function go(p){page=p;drawNav();render();}
+
+function slotColour(st){return st==='healthy'?'#1D9E75':st==='faulted'?'#f39c12':st==='lost'?'#c0392b':'#cfd8d5';}
+function bannerHTML(){
+  const cols=['#27ae60','#f39c12','#c0392b'],names=['SAFE','CAUTION','HIGH ALERT'];
+  const a=D.alert|0;let t=names[a]||'SAFE';
+  if(D.gasConf>=0&&D.gasConf<D.conf&&a>0)t+="<br><span style='font-size:12px'>Not yet confirmed by a second sensor</span>";
+  return `<div class="banner" style="background:${cols[a]||cols[0]}">${t}</div>`;
+}
+function countsHTML(){
+  return `<div class="counts">
+    <div class="count"><div class="num">${D.active}</div><div class="lbl">working</div></div>
+    <div class="count"><div class="num">${D.present}</div><div class="lbl">connected</div></div>
+    <div class="count"><div class="num">${D.lost}</div><div class="lbl">disconnected</div></div></div>`;
+}
+function homeHTML(){
+  let h=`<div class="hello">${esc(D.greeting)}</div>`;
+  h+=bannerHTML();
+  if(D.advice&&D.advice.length>0)h+=`<div class="advice"><b>What to do:</b> ${esc(D.advice)}</div>`;
+  h+=countsHTML();
+  h+=`<div class="card"><b>Gas reading</b>`;
+  if(D.gasConf>=0)h+=`<div style="font-size:13px;margin-top:4px">Confidence: <b>${D.gasConf}%</b></div><div class="why">${esc(D.gasWhy)}</div>`;
+  else h+=`<div class="why">No gas sensor connected.</div>`;
+  h+=`</div>`;
+  h+=`<div class="card"><b>Connected sensors</b><table style="margin-top:8px"><tr><th>Sensor</th><th>Reading</th><th>Status</th><th>Trust</th></tr>`;
+  let anyRow=false;
+  (D.slots||[]).forEach(s=>{
+    if(s.st==='empty')return;
+    anyRow=true;
+    let txt,col;
+    if(s.st==='lost'){txt='Disconnected';col='#c0392b';}
+    else if(s.st==='faulted'){txt='Present but faulty';col='#f39c12';}
+    else{txt='Present and active';col='#1D9E75';}
+    h+=`<tr><td><b>${esc(s.m)}</b><div class="why">${esc(s.f)}</div></td>
+      <td>${s.st==='healthy'?esc(s.r):'--'}</td>
+      <td style="color:${col};font-weight:bold">${txt}</td>
+      <td>${s.st==='healthy'?s.t+'%':'-'}</td></tr>`;
+  });
+  if(!anyRow)h+=`<tr><td colspan="4" style="color:#999">No sensors connected yet.</td></tr>`;
+  h+=`</table></div>`;
+  h+=`<div class="sub">Tap a sensor on the <b>Sensors</b> page to see its own history.</div>`;
+  return h;
+}
+function slotsHTML(){
+  let h=`<div class="sub">OMISA has ${D.slotTotal} slots. Each fills when a sensor is connected.</div>`;
+  h+=countsHTML();
+  h+='<div class="grid">';
+  (D.slots||[]).forEach(s=>{
+    const click=s.st!=='empty'?`onclick="showSlot(${s.n})" style="cursor:pointer"`:'';
+    h+=`<div class="slot" ${click} style="border-top-color:${slotColour(s.st)};${s.st!=='empty'?'cursor:pointer':''}">`;
+    h+=`<div class="sn">Slot ${s.n}${s.st!=='empty'?' &rsaquo;':''}</div>`;
+    if(s.st==='empty'){
+      h+=`<div class="emptyslot">Empty<br><span style="font-size:11px">ready for a sensor</span></div>`;
+    }else{
+      const tagbg=s.c==='native'?'#04342C':'#5DCAA5',tagfg=s.c==='native'?'#fff':'#04342C';
+      h+=`<div class="sm">${esc(s.m)}</div>`;
+      h+=`<div class="sf">${esc(s.f)} &middot; <span class="tag" style="background:${tagbg};color:${tagfg}">${esc(s.c)}</span></div>`;
+      if(s.st==='lost'){
+        h+=`<div class="sstate" style="color:#c0392b">Disconnected</div><div class="why">last seen at ${fmtTime(s.seen)}</div>`;
+      }else if(s.st==='faulted'){
+        h+=`<div class="sstate" style="color:#f39c12">Sensor fault</div><div class="why">connected, but its reading is not valid</div>`;
+      }else{
+        h+=`<div class="sr">${esc(s.r)}</div><div class="sstate" style="color:#1D9E75">Present and active</div>`;
+        const c=s.t>=D.conf?'#1D9E75':'#f39c12';
+        h+=`<div class="bar"><div class="fill" style="width:${s.t}%;background:${c}"></div></div>`;
+        h+=`<div class="why">trust ${s.t}% &middot; ${esc(s.w)}</div>`;
+      }
+    }
+    h+=`</div>`;
+  });
+  h+='</div>';
+  return h;
+}
+function historyHTML(){
+  let h='<div class="card"><h3>What has happened</h3><table><tr><th>Time</th><th>Event</th></tr>';
+  (D.log||[]).forEach(e=>{h+=`<tr><td>${fmtTime(e.t)}</td><td>${esc(e.e)}</td></tr>`;});
+  h+='</table><div class="sub">Times are counted from when OMISA was switched on. OMISA has no clock, so it cannot show the date. A clock module would add dated records.</div></div>';
+  return h;
+}
+function connectHTML(){
+  const ble=!!navigator.bluetooth;
+  let h='<div class="card"><h3>How to connect</h3><div class="sub">OMISA offers two ways at the same time. Use whichever suits your phone.</div>';
+  h+='<h4>Bluetooth</h4>';
+  if(ble){
+    h+=`<div class="info">Your phone keeps its own internet. OMISA connects over Bluetooth only.
+      <div style="margin-top:8px;display:flex;align-items:center;gap:10px">
+        ${connected?'<button class="ghost" onclick="disconnect()">Disconnect</button>':'<button onclick="connect()">Connect</button>'}
+        <span class="why">${connected?'Connected over Bluetooth':'Chrome on Android only'}</span>
+      </div></div>`;
+  }else{
+    h+='<div class="warn"><b>This phone cannot use Bluetooth here.</b><br>Bluetooth works in Chrome on Android. On iPhone or iPad, use the wifi way below.</div>';
+  }
+  h+='<h4>Wifi</h4>';
+  h+='<div class="info">Works on every phone. Your phone joins OMISA\'s own network, so it has no internet while connected.</div>';
+  h+='<ol><li>Join the network <b>OMISA</b>, password <b>omisa1234</b>.</li><li>Open <b>omisa.local</b> or <b>192.168.4.1</b> in a browser.</li><li>If your phone warns there is no internet, choose to stay connected.</li></ol>';
+  h+='<div class="sub">Both ways show the same live readings.</div></div>';
+  return h;
+}
+function aboutHTML(){
+  return `<div class="card"><h3>What OMISA is</h3>
+    <div style="font-size:13px">OMISA is a wearable that watches the air and movement around you. It has eight slots. Any sensor that follows OMISA's simple rules can be plugged into a slot, and OMISA shows what it reports. OMISA itself knows nothing about any sensor in advance, each sensor introduces itself.</div></div>
+    <div class="card"><h4>Two kinds of sensor</h4>
+    <div style="font-size:13px"><span class="tag" style="background:#04342C">native</span> speaks to OMISA directly.<br><br><span class="tag" style="background:#5DCAA5;color:#04342C">bridge</span> uses a small helper to translate for it.</div></div>
+    <div class="card"><h4>Trust and confidence</h4>
+    <div style="font-size:13px"><b>Trust</b> is about one sensor: is it working steadily. A sensor that reacts quickly to real gas is not marked down, only one that jumps about for no reason.<br><br><b>Confidence</b> is about the gas reading overall. Two gas sensors that agree back each other up. When they disagree, confidence drops even if both are working, they may just be in different air.<br><br>A warning is always shown, even when confidence is low. It is marked "not yet confirmed" but never hidden.</div></div>`;
+}
+function showSlot(n){openSlot=n;page='SlotDetail';drawNav();render();}
+function slotDetailHTML(){
+  const s=(D.slots||[]).find(x=>x.n===openSlot);
+  if(!s)return `<div class="card">Unknown slot.</div>`;
+  let h=`<div class="sub"><a onclick="go('Sensors')" style="cursor:pointer">&larr; all sensors</a></div>`;
+  h+=`<div class="card" style="border-top:5px solid ${slotColour(s.st)}"><div class="sn">Slot ${s.n}</div>`;
+  if(s.st==='empty'){h+=`<div class="emptyslot">This slot is empty.</div></div>`;return h;}
+  const tagbg=s.c==='native'?'#04342C':'#5DCAA5',tagfg=s.c==='native'?'#fff':'#04342C';
+  h+=`<div class="sm" style="font-size:18px">${esc(s.m)}</div>`;
+  h+=`<div class="sf">${esc(s.f)} &middot; <span class="tag" style="background:${tagbg};color:${tagfg}">${esc(s.c)}</span></div>`;
+  let txt,col;
+  if(s.st==='lost'){txt='Disconnected';col='#c0392b';}
+  else if(s.st==='faulted'){txt='Present but faulty';col='#f39c12';}
+  else{txt='Present and active';col='#1D9E75';}
+  h+=`<div class="sstate" style="color:${col};font-size:15px;margin-top:8px">${txt}</div>`;
+  if(s.st==='healthy'){
+    h+=`<div class="sr" style="font-size:26px">${esc(s.r)}</div>`;
+    const c=s.t>=D.conf?'#1D9E75':'#f39c12';
+    h+=`<div class="bar"><div class="fill" style="width:${s.t}%;background:${c}"></div></div>`;
+    h+=`<div class="why">trust ${s.t}% &middot; ${esc(s.w)}</div>`;
+  }else if(s.st==='lost'){h+=`<div class="why">last seen at ${fmtTime(s.seen)}</div>`;}
+  else if(s.st==='faulted'){h+=`<div class="why">connected, but its reading is not valid</div>`;}
+  h+=`</div>`;
+  h+=`<div class="card"><h4>This sensor's history</h4><table><tr><th>Time</th><th>Event</th></tr>`;
+  let any=false;
+  (D.log||[]).forEach(e=>{ if(String(e.e).indexOf(s.m)>=0){ h+=`<tr><td>${fmtTime(e.t)}</td><td>${esc(e.e)}</td></tr>`; any=true; } });
+  if(!any)h+=`<tr><td colspan="2" style="color:#999">No events yet for this sensor.</td></tr>`;
+  h+=`</table></div>`;
+  return h;
+}
+function render(){
+  $('uptime').textContent='Open Modular Interchangeable Sensor Architecture';
+  $('logo').innerHTML=logoSVG(36);
+  if(page==='Connect'){$('main').innerHTML=connectHTML();return;}
+  if(!D){
+    $('main').innerHTML=`<div class="card"><h3>Not connected</h3><div class="sub">Connect over Bluetooth, or join OMISA's wifi. Both show the same live readings.</div><br><button onclick="go('Connect')">See how to connect</button></div>`;
+    return;
+  }
+  if(page==='Home')$('main').innerHTML=homeHTML();
+  if(page==='Sensors')$('main').innerHTML=slotsHTML();
+  if(page==='History')$('main').innerHTML=historyHTML();
+  if(page==='About')$('main').innerHTML=aboutHTML();
+  if(page==='SlotDetail')$('main').innerHTML=slotDetailHTML();
+}
+function onChunk(ev){
+  const s=new TextDecoder().decode(ev.target.value);
+  if(s==='\u0002'){buf='';return;}
+  if(s==='\u0003'){try{D=JSON.parse(buf);render();}catch(e){console.log('parse fail',buf.length,e);}buf='';return;}
+  buf+=s;
+}
+async function connect(){
+  try{
+    device=await navigator.bluetooth.requestDevice({filters:[{name:'OMISA'}],optionalServices:[SERVICE_UUID]});
+    device.addEventListener('gattserverdisconnected',()=>{connected=false;D=null;buf='';render();});
+    const srv=await device.gatt.connect();
+    const svc=await srv.getPrimaryService(SERVICE_UUID);
+    ch=await svc.getCharacteristic(CHAR_UUID);
+    await ch.startNotifications();
+    ch.addEventListener('characteristicvaluechanged',onChunk);
+    connected=true;go('Home');
+  }catch(e){alert('Could not connect: '+e.message);}
+}
+function disconnect(){if(device&&device.gatt.connected)device.gatt.disconnect();connected=false;D=null;render();}
+drawNav();render();
+</script>
+</body>
+</html>
